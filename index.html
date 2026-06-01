@@ -140,6 +140,22 @@
     .editing-mode .hymn-item.in-edit { background: var(--highlight); }
     .editing-mode .hymn-item.in-edit .pl-badge { background: var(--accent); color: #fff; }
 
+    /* ── Now-playing playlist header ── */
+    .now-playing-bar {
+      display: none; padding: 8px 12px;
+      background: var(--accent); color: #fff;
+      font-size: .8rem; align-items: center; gap: 8px; flex-shrink: 0;
+    }
+    .now-playing-bar.visible { display: flex; }
+    .now-playing-bar span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .now-playing-bar button {
+      background: rgba(255,255,255,.2); border: none; color: #fff;
+      padding: 3px 8px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: .75rem;
+    }
+    .hymn-item.playing-now { border-left: 3px solid var(--accent); padding-left: 11px; background: var(--highlight); }
+    .hymn-item.no-audio-item .hymn-num { opacity: .45; }
+    .hymn-item.no-audio-item .hymn-title { opacity: .45; }
+
     /* ── No results ── */
     .no-results { padding: 20px; text-align: center; color: var(--text-muted); font-style: italic; }
 
@@ -270,6 +286,10 @@
           <label><input type="checkbox" id="optIgnorePunct" checked> Ignore punctuation</label>
         </div>
       </div>
+      <div class="now-playing-bar" id="nowPlayingBar">
+        <span id="nowPlayingLabel">♪ Playlist</span>
+        <button id="exitPlaylistViewBtn">✕ Exit</button>
+      </div>
       <div class="edit-banner" id="editBanner">
         <span id="editBannerLabel">Editing playlist</span>
         <button id="cancelEditBtn">Cancel</button>
@@ -347,6 +367,8 @@ var savedPlaylists = JSON.parse(localStorage.getItem('savedPlaylists') || '[]');
 var editingPlaylist = null;   // playlist object being edited (null = not editing)
 var editHymns = [];           // working copy of hymn keys during edit
 var activePlayPos = -1;       // position in currently playing playlist
+var activePlayList = null;    // full hymn list for current playlist (incl. no-audio)
+var activeAudioList = null;   // audio-only subset for sequential playback
 
 function savePlaylists() {
   localStorage.setItem('savedPlaylists', JSON.stringify(savedPlaylists));
@@ -518,26 +540,48 @@ function showHymnsView() {
 }
 
 function startPlaylistPlayback(pl) {
-  var hymns = [];
+  // Build full list (all hymns in playlist) and audio-only subset
+  activePlayList = [];
   for (var i = 0; i < pl.hymns.length; i++) {
     var h = hymnByKey(pl.hymns[i]);
-    if (h && hasAudio(h)) hymns.push(h);
+    if (h) activePlayList.push(h);
   }
-  if (hymns.length === 0) return;
-  // Reset search and filteredList so all hymns are reachable
-  searchInput.value = '';
+  activeAudioList = activePlayList.filter(hasAudio);
+  if (activeAudioList.length === 0) return;
+
+  // Show playlist hymns in sidebar
+  showHymnsView();
+  filteredList = activePlayList;
+  document.getElementById('nowPlayingLabel').textContent = '♪ ' + pl.name;
+  document.getElementById('nowPlayingBar').classList.add('visible');
+  document.getElementById('sidebar').classList.remove('collapsed');
+  renderList();
+
+  activePlayPos = 0;
+  playPlaylistItem(0, activeAudioList);
+}
+
+function exitPlaylistView() {
+  activePlayList = null;
+  activeAudioList = null;
+  activePlayPos = -1;
+  document.getElementById('nowPlayingBar').classList.remove('visible');
   filteredList = allHymns;
   renderList();
-  showHymnsView();
-  activePlayPos = 0;
-  playPlaylistItem(0, hymns);
 }
+
+document.getElementById('exitPlaylistViewBtn').addEventListener('click', function() {
+  stopMidi(true);
+});
 
 function playPlaylistItem(pos, list) {
   var hymn = list[pos];
   if (!hymn) return;
-  var idx = allHymns.indexOf(hymn);
-  filteredList = allHymns;
+  // Update the sidebar list to reflect current position
+  filteredList = activePlayList || allHymns;
+  var idx = filteredList.indexOf(hymn);
+  currentIndex = idx;
+  renderList();
   selectHymn(idx);
   var folder = hymn.collection === 'trinity' ? 'midi1' : 'midi2';
   document.getElementById('playerPos').textContent = (pos + 1) + ' / ' + list.length;
@@ -548,6 +592,7 @@ function playPlaylistItem(pos, list) {
     } else {
       document.getElementById('playerPos').textContent = '';
       activePlayPos = -1;
+      exitPlaylistView();
     }
   });
 }
@@ -600,19 +645,26 @@ function renderList() {
     return;
   }
 
+  // Find currently playing hymn for highlight
+  var playingHymn = (activeAudioList && activePlayPos >= 0) ? activeAudioList[activePlayPos] : null;
+
   list.innerHTML = source.map(function(h, i) {
     var key = hymnKey(h);
     var isActive = currentIndex !== null && filteredList[currentIndex] === h;
+    var isPlayingNow = h === playingHymn;
     var isBookmarked = bookmarks[key];
     var editIdx = editingPlaylist ? editHymns.indexOf(key) : -1;
     var inEdit = editIdx !== -1;
     var badge = inEdit ? (editIdx + 1) : '';
+    var noAudio = activePlayList && !hasAudio(h);
     return '<div class="hymn-item' +
       (isActive ? ' active' : '') +
+      (isPlayingNow ? ' playing-now' : '') +
       (isBookmarked ? ' bookmarked' : '') +
       (inEdit ? ' in-edit' : '') +
+      (noAudio ? ' no-audio-item' : '') +
       '" data-idx="' + i + '">' +
-      '<span class="hymn-num">#' + h.id + '</span>' +
+      '<span class="hymn-num">#' + h.id + (isPlayingNow ? ' ♪' : '') + '</span>' +
       '<span class="hymn-title">' + escHtml(h.firstLine) + '</span>' +
       '<span class="pl-badge">' + badge + '</span>' +
       '</div>';
@@ -628,6 +680,22 @@ function renderList() {
         if (pos === -1) editHymns.push(key);
         else editHymns.splice(pos, 1);
         renderList();
+      } else if (activePlayList) {
+        // Playing playlist: jump to tapped hymn
+        var hymn = filteredList[idx];
+        var audioIdx = activeAudioList ? activeAudioList.indexOf(hymn) : -1;
+        if (audioIdx !== -1) {
+          // Has audio — jump and play from this position
+          unlockAudio();
+          activePlayPos = audioIdx;
+          playPlaylistItem(audioIdx, activeAudioList);
+        } else {
+          // No audio — just show lyrics
+          selectHymn(idx);
+        }
+        if (window.innerWidth <= 640) {
+          document.getElementById('sidebar').classList.add('collapsed');
+        }
       } else {
         selectHymn(idx);
       }
@@ -772,14 +840,15 @@ document.getElementById('playerPlayPause').addEventListener('click', function() 
   }
 });
 
-document.getElementById('playerClose').addEventListener('click', stopMidi);
+document.getElementById('playerClose').addEventListener('click', function() { stopMidi(true); });
 
-function stopMidi() {
+function stopMidi(clearPlaylist) {
   if (midiPlayerLib) { midiPlayerLib.stop(); }
   setPlayerState(false);
   document.getElementById('playerBar').classList.remove('visible');
   document.getElementById('playerPos').textContent = '';
   activePlayPos = -1;
+  if (clearPlaylist) exitPlaylistView();
 }
 
 function loadMidi(src, title, onFinish) {
