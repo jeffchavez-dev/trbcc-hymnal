@@ -493,45 +493,36 @@ function stopMidi() {
   document.getElementById('playerBar').classList.remove('visible');
 }
 
-async function loadMidi(src, title) {
+function loadMidi(src, title) {
   stopMidi();
   document.getElementById('playBtn').textContent = '⏳ Loading…';
   document.getElementById('playBtn').disabled = true;
 
-  try {
-    const ctx = getAudioContext();
+  var ctx = getAudioContext();
+  var playBtn = document.getElementById('playBtn');
 
-    // Load soundfont instrument from local file (works offline)
-    if (!instrument) {
-      instrument = await Soundfont.instrument(ctx, 'acoustic_grand_piano', {
-        nameToUrl: (name, sf, format) => `/soundfont/${name}-${format}.js`,
-        format: 'mp3'
-      });
-      // Build sorted list of available MIDI note numbers for nearest-note lookup
-      instrument._midiKeys = Object.keys(instrument.buffers).map(Number).sort((a, b) => a - b);
-    }
+  function onError(e) {
+    console.error(e);
+    alert('Could not load audio for this hymn.');
+    playBtn.textContent = '▶ Play';
+    playBtn.disabled = false;
+  }
 
-    // Fetch and parse MIDI file
-    const resp = await fetch(src);
-    if (!resp.ok) throw new Error('MIDI file not found');
-    const arrayBuf = await resp.arrayBuffer();
-
-    // Build player
-    midiPlayerLib = new MidiPlayer.Player((event) => {
+  function startPlayback(arrayBuf) {
+    midiPlayerLib = new MidiPlayer.Player(function(event) {
       if (event.name !== 'Note on' || event.velocity === 0 || !instrument) return;
-      const midi = event.noteNumber;
-      // Find nearest available sample; pitch-shift via cents if needed
-      const nearest = instrument._midiKeys.reduce((prev, cur) =>
-        Math.abs(cur - midi) < Math.abs(prev - midi) ? cur : prev
-      );
-      const cents = (midi - nearest) * 100;
+      var midi = event.noteNumber;
+      var nearest = instrument._midiKeys.reduce(function(prev, cur) {
+        return Math.abs(cur - midi) < Math.abs(prev - midi) ? cur : prev;
+      });
+      var cents = (midi - nearest) * 100;
       instrument.start(nearest, ctx.currentTime, {
         gain: event.velocity / 127,
         cents: cents
       });
     });
 
-    midiPlayerLib.on('endOfFile', () => {
+    midiPlayerLib.on('endOfFile', function() {
       setPlayerState(false);
       document.getElementById('playerPlayPause').textContent = '▶';
     });
@@ -540,15 +531,32 @@ async function loadMidi(src, title) {
     midiPlayerLib.play();
     setPlayerState(true);
 
-    currentMidiTitle = title;
     document.getElementById('playerTitle').textContent = title;
     document.getElementById('playerBar').classList.add('visible');
-  } catch (e) {
-    console.error(e);
-    alert('Could not load audio for this hymn.');
-  } finally {
-    document.getElementById('playBtn').textContent = '▶ Play';
-    document.getElementById('playBtn').disabled = false;
+    playBtn.textContent = '▶ Play';
+    playBtn.disabled = false;
+  }
+
+  function loadAndPlay() {
+    fetch(src).then(function(resp) {
+      if (!resp.ok) throw new Error('MIDI file not found');
+      return resp.arrayBuffer();
+    }).then(function(arrayBuf) {
+      startPlayback(arrayBuf);
+    }).catch(onError);
+  }
+
+  if (instrument) {
+    loadAndPlay();
+  } else {
+    Soundfont.instrument(ctx, 'acoustic_grand_piano', {
+      nameToUrl: function(name, sf, format) { return '/soundfont/' + name + '-' + format + '.js'; },
+      format: 'mp3'
+    }).then(function(inst) {
+      instrument = inst;
+      instrument._midiKeys = Object.keys(instrument.buffers).map(Number).sort(function(a, b) { return a - b; });
+      loadAndPlay();
+    }).catch(onError);
   }
 }
 </script>
