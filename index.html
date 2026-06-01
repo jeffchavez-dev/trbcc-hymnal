@@ -451,71 +451,104 @@ function applyFontSize() {
 document.getElementById('fontInc').addEventListener('click', () => { fontSize = Math.min(fontSize + 1, 28); applyFontSize(); localStorage.setItem('fontSize', fontSize); });
 document.getElementById('fontDec').addEventListener('click', () => { fontSize = Math.max(fontSize - 1, 12); applyFontSize(); localStorage.setItem('fontSize', fontSize); });
 
-// ── MIDI playback ──────────────────────────────────────────────────────
-// Uses browser's Web Audio + a simple MIDI-to-audio approach via MIDIjs
-// We load MIDI files from the assets folder (midi1 / midi2)
-let audio = null;
+// ── MIDI playback via midi-player-js + soundfont-player ───────────────
+let midiPlayerLib = null;   // MidiPlayer.Player instance
+let audioContext = null;
+let instrument = null;
+let isPlaying = false;
+let currentMidiTitle = '';
+
+function getAudioContext() {
+  if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioContext.state === 'suspended') audioContext.resume();
+  return audioContext;
+}
+
+function setPlayerState(playing) {
+  isPlaying = playing;
+  document.getElementById('playerPlayPause').textContent = playing ? '⏸' : '▶';
+}
 
 document.getElementById('playBtn').addEventListener('click', () => {
   const hymn = filteredList[currentIndex];
   if (!hymn) return;
   const folder = hymn.collection === 'trinity' ? 'midi1' : 'midi2';
-  const src = `assets/${folder}/h${hymn.id}.mid`;
+  const src = `${folder}/h${hymn.id}.mid`;
   loadMidi(src, hymn.firstLine);
 });
 
 document.getElementById('playerPlayPause').addEventListener('click', () => {
-  if (midiPlayer && !midiPlayer.paused) {
-    midiPlayer.pause();
-    document.getElementById('playerPlayPause').textContent = '▶';
-  } else if (midiPlayer) {
-    midiPlayer.play();
-    document.getElementById('playerPlayPause').textContent = '⏸';
+  if (!midiPlayerLib) return;
+  if (isPlaying) {
+    midiPlayerLib.pause();
+    setPlayerState(false);
+  } else {
+    getAudioContext();
+    midiPlayerLib.play();
+    setPlayerState(true);
   }
 });
 
 document.getElementById('playerClose').addEventListener('click', stopMidi);
 
-function loadMidi(src, title) {
-  stopMidi();
-  // Use native <audio> — browser MIDI support is limited, but we try.
-  // For full MIDI, users can install a browser plugin or we use MIDI.js.
-  midiPlayer = new Audio(src);
-  midiPlayer.addEventListener('ended', () => {
-    document.getElementById('playerPlayPause').textContent = '▶';
-  });
-  midiPlayer.addEventListener('error', () => {
-    showMidiError();
-  });
-  midiPlayer.play().then(() => {
-    document.getElementById('playerBar').classList.add('visible');
-    document.getElementById('playerTitle').textContent = title;
-    document.getElementById('playerPlayPause').textContent = '⏸';
-  }).catch(showMidiError);
-}
-
 function stopMidi() {
-  if (midiPlayer) { midiPlayer.pause(); midiPlayer = null; }
+  if (midiPlayerLib) { midiPlayerLib.stop(); }
+  setPlayerState(false);
   document.getElementById('playerBar').classList.remove('visible');
 }
 
-function showMidiError() {
-  document.getElementById('playerBar').classList.remove('visible');
-  alert('MIDI playback requires a browser that supports MIDI audio.\n\nTip: Install the "Jazz-Plugin" or use a Chromium browser with a MIDI soundfont extension.');
+async function loadMidi(src, title) {
+  stopMidi();
+  document.getElementById('playBtn').textContent = '⏳ Loading…';
+  document.getElementById('playBtn').disabled = true;
+
+  try {
+    const ctx = getAudioContext();
+
+    // Load soundfont instrument (cached after first load)
+    if (!instrument) {
+      instrument = await Soundfont.instrument(ctx, 'acoustic_grand_piano', {
+        soundfont: 'MusyngKite',
+        format: 'mp3'
+      });
+    }
+
+    // Fetch and parse MIDI file
+    const resp = await fetch(src);
+    if (!resp.ok) throw new Error('MIDI file not found');
+    const arrayBuf = await resp.arrayBuffer();
+
+    // Build player
+    midiPlayerLib = new MidiPlayer.Player((event) => {
+      if (event.name === 'Note on' && event.velocity > 0 && instrument) {
+        instrument.play(event.noteName, ctx.currentTime, { gain: event.velocity / 100 });
+      }
+    });
+
+    midiPlayerLib.on('endOfFile', () => {
+      setPlayerState(false);
+      document.getElementById('playerPlayPause').textContent = '▶';
+    });
+
+    midiPlayerLib.loadArrayBuffer(arrayBuf);
+    midiPlayerLib.play();
+    setPlayerState(true);
+
+    currentMidiTitle = title;
+    document.getElementById('playerTitle').textContent = title;
+    document.getElementById('playerBar').classList.add('visible');
+  } catch (e) {
+    console.error(e);
+    alert('Could not load audio for this hymn.');
+  } finally {
+    document.getElementById('playBtn').textContent = '▶ Play';
+    document.getElementById('playBtn').disabled = false;
+  }
 }
 </script>
 
-<!-- Load MIDI.js for richer MIDI support if available -->
-<script>
-// Attempt to enhance MIDI playback using MIDI.js from CDN
-(function() {
-  const script = document.createElement('script');
-  script.src = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/piano-mp3.js';
-  script.onerror = () => {}; // silent fail, fallback to native
-  // We don't load MIDI.js full lib to keep it simple; native Audio handles .mid files
-  // in supported browsers (Firefox with plugin, some Chromium configs).
-})();
-</script>
+<script src="https://cdn.jsdelivr.net/npm/midi-player-js@2.0.16/browser/midiplayer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
 
 </body>
 </html>
