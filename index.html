@@ -541,13 +541,15 @@ function showHymnsView() {
 
 function startPlaylistPlayback(pl) {
   // Build full list (all hymns in playlist) and audio-only subset
-  activePlayList = [];
+  var fullList = [];
   for (var i = 0; i < pl.hymns.length; i++) {
     var h = hymnByKey(pl.hymns[i]);
-    if (h) activePlayList.push(h);
+    if (h) fullList.push(h);
   }
-  activeAudioList = activePlayList.filter(hasAudio);
-  if (activeAudioList.length === 0) return;
+  var audioList = fullList.filter(hasAudio);
+  if (audioList.length === 0) return; // nothing to play, leave state untouched
+  activePlayList = fullList;
+  activeAudioList = audioList;
 
   // Show playlist hymns in sidebar
   showHymnsView();
@@ -619,7 +621,7 @@ function renderList() {
   var firstLineOnly = document.getElementById('optFirstLine').checked;
   var list = document.getElementById('hymnList');
   // When a playlist is playing, show only its hymns
-  var source = activePlayList || allHymns;
+  var source = (activePlayList && activePlayList.length > 0) ? activePlayList : allHymns;
 
   if (!activePlayList && query) {
     // Hymn number search: query is digits or starts with #
