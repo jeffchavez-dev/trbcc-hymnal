@@ -618,9 +618,10 @@ function renderList() {
   var query = searchInput.value.trim();
   var firstLineOnly = document.getElementById('optFirstLine').checked;
   var list = document.getElementById('hymnList');
-  var source = allHymns;
+  // When a playlist is playing, show only its hymns
+  var source = activePlayList || allHymns;
 
-  if (query) {
+  if (!activePlayList && query) {
     // Hymn number search: query is digits or starts with #
     var numQuery = query.replace(/^#/, '');
     var isNumSearch = /^\d+$/.test(numQuery);
