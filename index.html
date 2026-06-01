@@ -397,6 +397,11 @@ document.getElementById('tabPlaylists').addEventListener('click', function() {
   renderPlaylists();
 });
 
+// ── Helper: forEach on NodeList (iOS 9 compat) ───────────────────────
+function each(nodeList, fn) {
+  Array.prototype.forEach.call(nodeList, fn);
+}
+
 // ── Playlists CRUD ────────────────────────────────────────────────────
 function renderPlaylists() {
   var container = document.getElementById('playlistsList');
@@ -427,19 +432,19 @@ function renderPlaylists() {
     '</div>';
   }).join('');
 
-  container.querySelectorAll('.pl-play').forEach(function(btn) {
+  each(container.querySelectorAll('.pl-play'), function(btn) {
     btn.addEventListener('click', function() {
       var pl = savedPlaylists[parseInt(btn.dataset.idx)];
       unlockAudio();
       startPlaylistPlayback(pl);
     });
   });
-  container.querySelectorAll('.pl-edit').forEach(function(btn) {
+  each(container.querySelectorAll('.pl-edit'), function(btn) {
     btn.addEventListener('click', function() {
       startEditPlaylist(parseInt(btn.dataset.idx));
     });
   });
-  container.querySelectorAll('.pl-delete').forEach(function(btn) {
+  each(container.querySelectorAll('.pl-delete'), function(btn) {
     btn.addEventListener('click', function() {
       var pl = savedPlaylists[parseInt(btn.dataset.idx)];
       if (confirm('Delete "' + pl.name + '"?')) {
@@ -607,7 +612,7 @@ function renderList() {
       '</div>';
   }).join('');
 
-  list.querySelectorAll('.hymn-item').forEach(function(el) {
+  each(list.querySelectorAll('.hymn-item'), function(el) {
     el.addEventListener('click', function() {
       var idx = parseInt(el.dataset.idx);
       if (editingPlaylist) {
