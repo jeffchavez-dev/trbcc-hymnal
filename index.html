@@ -16,6 +16,8 @@
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html, body { overflow-x: hidden; }
+
     :root {
       --bg: #fdf8f0;
       --surface: #fff;
@@ -120,6 +122,8 @@
     /* ── Main viewer ── */
     main {
       flex: 1;
+      min-width: 0;
+      overflow-x: hidden;
       overflow-y: auto;
       padding: 28px 32px 60px;
       max-width: 720px;
@@ -538,12 +542,17 @@ async function loadMidi(src, title) {
   try {
     const ctx = getAudioContext();
 
+    // Resume AudioContext (browser autoplay policy)
+    if (ctx.state === 'suspended') await ctx.resume();
+
     // Load soundfont instrument from local file (works offline)
     if (!instrument) {
       instrument = await Soundfont.instrument(ctx, 'acoustic_grand_piano', {
         nameToUrl: (name, sf, format) => `/soundfont/${name}-${format}.js`,
         format: 'mp3'
       });
+      // Build sorted list of available MIDI note numbers for nearest-note lookup
+      instrument._midiKeys = Object.keys(instrument.buffers).map(Number).sort((a, b) => a - b);
     }
 
     // Fetch and parse MIDI file
@@ -553,9 +562,17 @@ async function loadMidi(src, title) {
 
     // Build player
     midiPlayerLib = new MidiPlayer.Player((event) => {
-      if (event.name === 'Note on' && event.velocity > 0 && instrument) {
-        instrument.play(event.noteName, ctx.currentTime, { gain: event.velocity / 100 });
-      }
+      if (event.name !== 'Note on' || event.velocity === 0 || !instrument) return;
+      const midi = event.noteNumber;
+      // Find nearest available sample; pitch-shift via cents if needed
+      const nearest = instrument._midiKeys.reduce((prev, cur) =>
+        Math.abs(cur - midi) < Math.abs(prev - midi) ? cur : prev
+      );
+      const cents = (midi - nearest) * 100;
+      instrument.start(nearest, ctx.currentTime, {
+        gain: event.velocity / 127,
+        cents: cents
+      });
     });
 
     midiPlayerLib.on('endOfFile', () => {
