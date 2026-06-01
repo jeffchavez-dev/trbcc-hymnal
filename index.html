@@ -102,14 +102,64 @@
     .hymn-list { overflow-y: auto; flex: 1; overscroll-behavior: contain; }
     .hymn-item {
       padding: 10px 14px; border-bottom: 1px solid var(--border);
-      cursor: pointer; display: flex; align-items: baseline; gap: 8px;
+      cursor: pointer; display: flex; align-items: center; gap: 8px;
       transition: background .1s;
     }
     .hymn-item:hover { background: var(--highlight); }
     .hymn-item.active { background: var(--highlight); border-left: 3px solid var(--accent); padding-left: 11px; }
     .hymn-item.bookmarked .hymn-num::after { content: ' ★'; color: goldenrod; }
-    .hymn-num { font-size: .8rem; color: var(--text-muted); min-width: 32px; font-weight: 700; }
-    .hymn-title { font-size: .9rem; line-height: 1.35; }
+    .hymn-num { font-size: .8rem; color: var(--text-muted); min-width: 32px; font-weight: 700; flex-shrink: 0; }
+    .hymn-title { font-size: .9rem; line-height: 1.35; flex: 1; }
+
+    /* ── Playlist badge ── */
+    .pl-badge {
+      min-width: 20px; height: 20px; border-radius: 50%;
+      background: var(--accent); color: #fff;
+      font-size: .7rem; font-weight: 700; line-height: 20px;
+      text-align: center; flex-shrink: 0; display: none;
+    }
+    .select-mode .pl-badge { display: block; }
+    .select-mode .hymn-item.in-playlist { background: var(--highlight); }
+    .select-mode .hymn-item.in-playlist .pl-badge { opacity: 1; }
+    .select-mode .hymn-item:not(.in-playlist) .pl-badge { background: var(--border); }
+
+    /* ── Playlist footer bar ── */
+    .playlist-footer {
+      border-top: 1px solid var(--border);
+      padding: 10px 12px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      background: var(--surface);
+    }
+    .playlist-footer.visible { display: flex; }
+    .playlist-footer .pl-info { font-size: .82rem; color: var(--text-muted); }
+    .playlist-footer .pl-actions { display: flex; gap: 6px; }
+    .playlist-footer button {
+      flex: 1; padding: 7px 8px; border-radius: var(--radius);
+      border: 1px solid var(--border); font-family: inherit;
+      font-size: .82rem; cursor: pointer; background: var(--bg); color: var(--text);
+    }
+    .playlist-footer .pl-play-btn {
+      background: var(--accent); color: #fff; border-color: var(--accent);
+    }
+    .playlist-footer .pl-play-btn:disabled { opacity: .5; cursor: default; }
+
+    /* ── Select mode toggle ── */
+    .select-toggle {
+      display: flex; justify-content: flex-end;
+    }
+    .select-toggle button {
+      padding: 4px 10px; border: 1px solid var(--border);
+      border-radius: var(--radius); background: none; cursor: pointer;
+      font-family: inherit; font-size: .78rem; color: var(--text-muted);
+    }
+    .select-toggle button.active {
+      background: var(--accent); color: #fff; border-color: var(--accent);
+    }
+
+    /* ── Player bar — now shows playlist position ── */
+    .player-pos { font-size: .75rem; opacity: .75; white-space: nowrap; }
 
     /* ── Main viewer ── */
     main {
@@ -218,8 +268,18 @@
         <label><input type="checkbox" id="optFirstLine"> First line only</label>
         <label><input type="checkbox" id="optIgnorePunct" checked> Ignore punctuation</label>
       </div>
+      <div class="select-toggle">
+        <button id="selectModeBtn">+ Playlist</button>
+      </div>
     </div>
     <div class="hymn-list" id="hymnList"></div>
+    <div class="playlist-footer" id="playlistFooter">
+      <div class="pl-info" id="plInfo">0 hymns selected</div>
+      <div class="pl-actions">
+        <button id="plClearBtn">Clear</button>
+        <button class="pl-play-btn" id="plPlayBtn" disabled>▶ Play All</button>
+      </div>
+    </div>
   </aside>
 
   <main id="mainContent">
@@ -251,6 +311,7 @@
 <div class="player-bar" id="playerBar">
   <button class="play-btn" id="playerPlayPause">▶</button>
   <span class="player-title" id="playerTitle">—</span>
+  <span class="player-pos" id="playerPos"></span>
   <button class="player-close" id="playerClose">✕</button>
 </div>
 
@@ -277,6 +338,11 @@ let bookmarks = JSON.parse(localStorage.getItem('bookmarks') || '{}');
 let currentMidi = null;
 let midiPlayer = null;
 
+// ── Playlist state ─────────────────────────────────────────────────────
+let selectMode = false;
+let playlist = [];       // ordered array of hymn objects
+let playlistPos = -1;    // current position while playing
+
 // ── Boot — use XHR for maximum iOS compatibility ────────────────────────
 (function() {
   var xhr = new XMLHttpRequest();
@@ -295,6 +361,66 @@ let midiPlayer = null;
 document.getElementById('sidebarToggle').addEventListener('click', () => {
   document.getElementById('sidebar').classList.toggle('collapsed');
 });
+
+// ── Playlist ────────────────────────────────────────────────────────────
+function updatePlaylistUI() {
+  const footer = document.getElementById('playlistFooter');
+  const info = document.getElementById('plInfo');
+  const playBtn = document.getElementById('plPlayBtn');
+  const toggleBtn = document.getElementById('selectModeBtn');
+
+  toggleBtn.textContent = selectMode ? '✕ Done' : '+ Playlist';
+  toggleBtn.classList.toggle('active', selectMode);
+  footer.classList.toggle('visible', selectMode);
+
+  const withAudio = playlist.filter(function(h) { return !NO_AUDIO_IDS.has(h.id); });
+  info.textContent = playlist.length + ' hymn' + (playlist.length !== 1 ? 's' : '') + ' selected' +
+    (withAudio.length < playlist.length ? ' (' + withAudio.length + ' with audio)' : '');
+  playBtn.disabled = withAudio.length === 0;
+}
+
+document.getElementById('selectModeBtn').addEventListener('click', function() {
+  selectMode = !selectMode;
+  document.getElementById('hymnList').classList.toggle('select-mode', selectMode);
+  updatePlaylistUI();
+  renderList();
+});
+
+document.getElementById('plClearBtn').addEventListener('click', function() {
+  playlist = [];
+  updatePlaylistUI();
+  renderList();
+});
+
+document.getElementById('plPlayBtn').addEventListener('click', function() {
+  var withAudio = playlist.filter(function(h) { return !NO_AUDIO_IDS.has(h.id); });
+  if (withAudio.length === 0) return;
+  playlistPos = 0;
+  unlockAudio();
+  playPlaylistItem(playlistPos, withAudio);
+  // close sidebar on mobile
+  if (window.innerWidth <= 640) {
+    document.getElementById('sidebar').classList.add('collapsed');
+  }
+});
+
+function playPlaylistItem(pos, list) {
+  var hymn = list[pos];
+  if (!hymn) return;
+  selectHymn(filteredList.indexOf(hymn));
+  var folder = hymn.collection === 'trinity' ? 'midi1' : 'midi2';
+  document.getElementById('playerPos').textContent = (pos + 1) + ' / ' + list.length;
+  loadMidi(folder + '/h' + hymn.id + '.mid', hymn.firstLine, function() {
+    // on finish, auto-advance
+    if (pos + 1 < list.length) {
+      playlistPos = pos + 1;
+      playPlaylistItem(playlistPos, list);
+    } else {
+      document.getElementById('playerPos').textContent = '';
+      playlistPos = -1;
+    }
+  });
+}
 
 // ── Search ─────────────────────────────────────────────────────────────
 const searchInput = document.getElementById('searchInput');
@@ -322,7 +448,7 @@ function renderList() {
 
   if (query) {
     const q = normalize(query);
-    source = source.filter(h => {
+    source = source.filter(function(h) {
       const haystack = firstLineOnly ? normalize(h.firstLine) : normalize(h.text);
       return haystack.indexOf(q) !== -1;
     });
@@ -335,20 +461,41 @@ function renderList() {
     return;
   }
 
-  const bkKey = currentHymnKey();
-  list.innerHTML = source.map((h, i) => {
-    const key = `${h.collection}:${h.id}`;
+  list.innerHTML = source.map(function(h, i) {
+    const key = h.collection + ':' + h.id;
     const isActive = currentIndex !== null && filteredList[currentIndex] === h;
     const isBookmarked = bookmarks[key];
-    return `<div class="hymn-item${isActive ? ' active' : ''}${isBookmarked ? ' bookmarked' : ''}"
-      data-idx="${i}">
-      <span class="hymn-num">#${h.id}</span>
-      <span class="hymn-title">${escHtml(h.firstLine)}</span>
-    </div>`;
+    const plIdx = playlist.indexOf(h);
+    const inPlaylist = plIdx !== -1;
+    const badge = plIdx !== -1 ? (plIdx + 1) : '';
+    return '<div class="hymn-item' +
+      (isActive ? ' active' : '') +
+      (isBookmarked ? ' bookmarked' : '') +
+      (inPlaylist ? ' in-playlist' : '') +
+      '" data-idx="' + i + '">' +
+      '<span class="hymn-num">#' + h.id + '</span>' +
+      '<span class="hymn-title">' + escHtml(h.firstLine) + '</span>' +
+      '<span class="pl-badge">' + badge + '</span>' +
+      '</div>';
   }).join('');
 
-  list.querySelectorAll('.hymn-item').forEach(el => {
-    el.addEventListener('click', () => selectHymn(parseInt(el.dataset.idx)));
+  list.querySelectorAll('.hymn-item').forEach(function(el) {
+    el.addEventListener('click', function() {
+      const idx = parseInt(el.dataset.idx);
+      if (selectMode) {
+        const hymn = filteredList[idx];
+        const pos = playlist.indexOf(hymn);
+        if (pos === -1) {
+          playlist.push(hymn);
+        } else {
+          playlist.splice(pos, 1);
+        }
+        updatePlaylistUI();
+        renderList();
+      } else {
+        selectHymn(idx);
+      }
+    });
   });
 }
 
@@ -473,8 +620,8 @@ document.getElementById('playBtn').addEventListener('click', () => {
   if (!hymn) return;
   unlockAudio(); // must happen synchronously inside the gesture on iOS
   const folder = hymn.collection === 'trinity' ? 'midi1' : 'midi2';
-  const src = `${folder}/h${hymn.id}.mid`;
-  loadMidi(src, hymn.firstLine);
+  const src = folder + '/h' + hymn.id + '.mid';
+  loadMidi(src, hymn.firstLine, null);
 });
 
 document.getElementById('playerPlayPause').addEventListener('click', () => {
@@ -495,9 +642,11 @@ function stopMidi() {
   if (midiPlayerLib) { midiPlayerLib.stop(); }
   setPlayerState(false);
   document.getElementById('playerBar').classList.remove('visible');
+  document.getElementById('playerPos').textContent = '';
+  playlistPos = -1;
 }
 
-function loadMidi(src, title) {
+function loadMidi(src, title, onFinish) {
   stopMidi();
   document.getElementById('playBtn').textContent = '⏳ Loading…';
   document.getElementById('playBtn').disabled = true;
@@ -507,7 +656,6 @@ function loadMidi(src, title) {
 
   function onError(e) {
     console.error(e);
-    alert('Could not load audio for this hymn.');
     playBtn.textContent = '▶ Play';
     playBtn.disabled = false;
   }
@@ -529,6 +677,7 @@ function loadMidi(src, title) {
     midiPlayerLib.on('endOfFile', function() {
       setPlayerState(false);
       document.getElementById('playerPlayPause').textContent = '▶';
+      if (onFinish) onFinish();
     });
 
     midiPlayerLib.loadArrayBuffer(arrayBuf);
@@ -542,12 +691,18 @@ function loadMidi(src, title) {
   }
 
   function loadAndPlay() {
-    fetch(src).then(function(resp) {
-      if (!resp.ok) throw new Error('MIDI file not found');
-      return resp.arrayBuffer();
-    }).then(function(arrayBuf) {
-      startPlayback(arrayBuf);
-    }).catch(onError);
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', src, true);
+    xhr.responseType = 'arraybuffer';
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        startPlayback(xhr.response);
+      } else {
+        onError('MIDI not found: ' + src);
+      }
+    };
+    xhr.onerror = onError;
+    xhr.send();
   }
 
   if (instrument) {
