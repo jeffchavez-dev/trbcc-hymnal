@@ -208,8 +208,7 @@
     .viewer-toolbar button:hover { background: var(--highlight); }
     .viewer-toolbar button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
     .font-ctrl { display: flex; align-items: center; gap: 4px; margin-left: auto; }
-    .font-ctrl button { padding: 5px 10px; font-size: 1rem; font-weight: 700; }
-    .font-ctrl span { min-width: 36px; text-align: center; font-size: .8rem; color: var(--text-muted); }
+    .font-ctrl button { padding: 5px 10px; font-size: .9rem; font-weight: 700; }
 
     /* ── MIDI player ── */
     .player-bar {
@@ -289,13 +288,12 @@
     </div>
     <div id="hymnView" style="display:none">
       <div class="viewer-toolbar">
-        <button id="prevHymn">← Prev</button>
-        <button id="nextHymn">Next →</button>
-        <button id="playBtn">▶ Play</button>
+        <button id="prevHymn" title="Previous">←</button>
+        <button id="nextHymn" title="Next">→</button>
+        <button id="playBtn" title="Play">▶</button>
         <div class="font-ctrl">
-          <button id="fontDec">A−</button>
-          <span id="fontSizeLabel">17px</span>
-          <button id="fontInc">A+</button>
+          <button id="fontDec" title="Decrease font">A−</button>
+          <button id="fontInc" title="Increase font">A+</button>
         </div>
       </div>
       <div class="hymn-header">
@@ -580,7 +578,6 @@ function updateBookmarkBtn(hymn) {
 // ── Font size ──────────────────────────────────────────────────────────
 function applyFontSize() {
   document.body.style.fontSize = fontSize + 'px';
-  document.getElementById('fontSizeLabel').textContent = fontSize + 'px';
 }
 document.getElementById('fontInc').addEventListener('click', () => { fontSize = Math.min(fontSize + 1, 28); applyFontSize(); localStorage.setItem('fontSize', fontSize); });
 document.getElementById('fontDec').addEventListener('click', () => { fontSize = Math.max(fontSize - 1, 12); applyFontSize(); localStorage.setItem('fontSize', fontSize); });
