@@ -907,7 +907,11 @@ function loadMidi(src, title, onFinish) {
   if (instrument) {
     loadAndPlay();
   } else if (USE_MANIFEST) {
-    Soundfont.instrument(ctx, '/soundfont/manifest.json').then(function(inst) {
+    // isSoundfontURL: soundfont-player only recognises .js as a direct URL;
+    // override so it treats our .json manifest as a URL too.
+    Soundfont.instrument(ctx, '/soundfont/manifest.json', {
+      isSoundfontURL: function() { return true; }
+    }).then(function(inst) {
       instrument = inst;
       instrument._midiKeys = Object.keys(inst.buffers).map(Number).sort(function(a,b){return a-b;});
       loadAndPlay();

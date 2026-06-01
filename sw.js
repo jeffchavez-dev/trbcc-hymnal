@@ -1,4 +1,4 @@
-const CACHE = 'mobihymnal-v7';
+const CACHE = 'mobihymnal-v8';
 const PRECACHE = [
   "/fonts/droidSerif-Bold.ttf",
   "/fonts/droidSerif-BoldItalic.ttf",
