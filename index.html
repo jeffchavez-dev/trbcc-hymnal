@@ -820,10 +820,8 @@ function loadMidi(src, title, onFinish) {
   if (instrument) {
     loadAndPlay();
   } else {
-    Soundfont.instrument(ctx, 'acoustic_grand_piano', {
-      nameToUrl: function(name, sf, format) { return '/soundfont/' + name + '-' + format + '.js'; },
-      format: 'mp3'
-    }).then(function(inst) {
+    // Load from individual MP3 files (avoids iOS Safari data URI issues)
+    Soundfont.instrument(ctx, '/soundfont/manifest.json').then(function(inst) {
       instrument = inst;
       instrument._midiKeys = Object.keys(instrument.buffers).map(Number).sort(function(a,b){return a-b;});
       loadAndPlay();
