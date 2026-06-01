@@ -1,0 +1,16 @@
+{
+  "name": "TRBCC Hymnal",
+  "short_name": "Hymnal",
+  "description": "Trinity Hymnal & Grace Hymns — read lyrics and play tunes",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fdf8f0",
+  "theme_color": "#4a3728",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%234a3728'/><text y='.9em' font-size='80' x='10'>♪</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
