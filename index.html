@@ -508,6 +508,15 @@ document.getElementById('saveEditBtn').addEventListener('click', function() {
 });
 
 // ── Playlist playback ─────────────────────────────────────────────────
+function showHymnsView() {
+  // Switch sidebar to Hymns tab and collapse on mobile
+  document.getElementById('tabHymns').classList.add('active');
+  document.getElementById('tabPlaylists').classList.remove('active');
+  document.getElementById('hymnsPanel').classList.remove('hidden');
+  document.getElementById('playlistsPanel').classList.add('hidden');
+  document.getElementById('sidebar').classList.add('collapsed');
+}
+
 function startPlaylistPlayback(pl) {
   var hymns = [];
   for (var i = 0; i < pl.hymns.length; i++) {
@@ -515,24 +524,21 @@ function startPlaylistPlayback(pl) {
     if (h && hasAudio(h)) hymns.push(h);
   }
   if (hymns.length === 0) return;
+  // Reset search and filteredList so all hymns are reachable
+  searchInput.value = '';
+  filteredList = allHymns;
+  renderList();
+  showHymnsView();
   activePlayPos = 0;
   playPlaylistItem(0, hymns);
-  if (window.innerWidth <= 640) {
-    document.getElementById('sidebar').classList.add('collapsed');
-  }
 }
 
 function playPlaylistItem(pos, list) {
   var hymn = list[pos];
   if (!hymn) return;
-  var idx = filteredList.indexOf(hymn);
-  if (idx === -1) {
-    filteredList = allHymns;
-    idx = allHymns.indexOf(hymn);
-    currentIndex = idx;
-    renderList();
-  }
-  selectHymn(filteredList.indexOf(hymn));
+  var idx = allHymns.indexOf(hymn);
+  filteredList = allHymns;
+  selectHymn(idx);
   var folder = hymn.collection === 'trinity' ? 'midi1' : 'midi2';
   document.getElementById('playerPos').textContent = (pos + 1) + ' / ' + list.length;
   loadMidi(folder + '/h' + hymn.id + '.mid', hymn.firstLine, function() {
