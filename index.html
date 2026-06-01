@@ -277,15 +277,19 @@ let bookmarks = JSON.parse(localStorage.getItem('bookmarks') || '{}');
 let currentMidi = null;
 let midiPlayer = null;
 
-// ── Boot ───────────────────────────────────────────────────────────────
-fetch('hymns.json')
-  .then(r => r.json())
-  .then(data => {
-    allHymns = [...data.trinity, ...data.grace]
-      .sort((a, b) => parseInt(a.id) - parseInt(b.id));
+// ── Boot — use XHR for maximum iOS compatibility ────────────────────────
+(function() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'hymns.json', true);
+  xhr.onload = function() {
+    var data = JSON.parse(xhr.responseText);
+    allHymns = data.trinity.concat(data.grace)
+      .sort(function(a, b) { return parseInt(a.id) - parseInt(b.id); });
     applyFontSize();
     renderList();
-  });
+  };
+  xhr.send();
+}());
 
 // ── Sidebar toggle ─────────────────────────────────────────────────────
 document.getElementById('sidebarToggle').addEventListener('click', () => {
@@ -320,7 +324,7 @@ function renderList() {
     const q = normalize(query);
     source = source.filter(h => {
       const haystack = firstLineOnly ? normalize(h.firstLine) : normalize(h.text);
-      return haystack.includes(q);
+      return haystack.indexOf(q) !== -1;
     });
   }
 
