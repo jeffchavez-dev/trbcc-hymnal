@@ -101,8 +101,6 @@
       font-size: .85rem; color: var(--text-muted);
     }
     .search-row button:hover { background: var(--highlight); }
-    .search-opts { display: flex; gap: 10px; flex-wrap: wrap; }
-    .search-opts label { display: flex; align-items: center; gap: 4px; font-size: .78rem; color: var(--text-muted); cursor: pointer; }
 
     /* ── Edit banner (shown when editing a playlist) ── */
     .edit-banner {
@@ -280,12 +278,7 @@
           <input type="search" id="searchInput" placeholder="Search or #number…" autocomplete="off" />
           <button id="clearSearch">✕</button>
         </div>
-        <div class="search-opts">
-          <label><input type="checkbox" id="optCase"> Case-sensitive</label>
-          <label><input type="checkbox" id="optFirstLine"> First line only</label>
-          <label><input type="checkbox" id="optIgnorePunct" checked> Ignore punctuation</label>
         </div>
-      </div>
       <div class="now-playing-bar" id="nowPlayingBar">
         <span id="nowPlayingLabel">♪ Playlist</span>
         <button id="exitPlaylistViewBtn">✕ Exit</button>
@@ -603,22 +596,13 @@ function playPlaylistItem(pos, list) {
 var searchInput = document.getElementById('searchInput');
 searchInput.addEventListener('input', renderList);
 document.getElementById('clearSearch').addEventListener('click', function() { searchInput.value = ''; renderList(); });
-document.getElementById('optCase').addEventListener('change', renderList);
-document.getElementById('optFirstLine').addEventListener('change', renderList);
-document.getElementById('optIgnorePunct').addEventListener('change', renderList);
 
 function normalize(str) {
-  var ignorePunct = document.getElementById('optIgnorePunct').checked;
-  var caseSensitive = document.getElementById('optCase').checked;
-  var s = str;
-  if (ignorePunct) s = s.replace(/[^\w\s]/g, '');
-  if (!caseSensitive) s = s.toLowerCase();
-  return s;
+  return str.replace(/[^\w\s]/g, '').toLowerCase();
 }
 
 function renderList() {
   var query = searchInput.value.trim();
-  var firstLineOnly = document.getElementById('optFirstLine').checked;
   var list = document.getElementById('hymnList');
   // When a playlist is playing, show only its hymns
   var source = (activePlayList && activePlayList.length > 0) ? activePlayList : allHymns;
@@ -635,8 +619,7 @@ function renderList() {
     } else {
       var q = normalize(query);
       source = source.filter(function(h) {
-        var haystack = firstLineOnly ? normalize(h.firstLine) : normalize(h.text);
-        return haystack.indexOf(q) !== -1;
+        return normalize(h.firstLine).indexOf(q) !== -1 || normalize(h.text).indexOf(q) !== -1;
       });
     }
   }
