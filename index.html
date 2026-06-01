@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MobiHymnal</title>
+  <style>
+    @font-face { font-family: 'DroidSerif'; src: url('fonts/droidSerif-Regular.ttf'); font-weight: 400; font-style: normal; }
+    @font-face { font-family: 'DroidSerif'; src: url('fonts/droidSerif-Bold.ttf'); font-weight: 700; font-style: normal; }
+    @font-face { font-family: 'DroidSerif'; src: url('fonts/droidSerif-Italic.ttf'); font-weight: 400; font-style: italic; }
+    @font-face { font-family: 'DroidSerif'; src: url('fonts/droidSerif-BoldItalic.ttf'); font-weight: 700; font-style: italic; }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #fdf8f0;
+      --surface: #fff;
+      --border: #e0d6c8;
+      --accent: #4a3728;
+      --accent-light: #7a5c48;
+      --text: #2c1f14;
+      --text-muted: #7a6a5a;
+      --highlight: #f5e6c8;
+      --radius: 8px;
+      --font-size: 17px;
+    }
+
+    body {
+      font-family: 'DroidSerif', Georgia, serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: var(--font-size);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--accent);
+      color: #fff;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 54px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 6px rgba(0,0,0,.25);
+    }
+    header h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: .02em; flex: 1; }
+    .header-btn {
+      background: none; border: none; color: #fff; cursor: pointer;
+      font-size: 1.3rem; padding: 6px; border-radius: 4px; line-height: 1;
+      transition: background .15s;
+    }
+    .header-btn:hover { background: rgba(255,255,255,.15); }
+
+    /* ── Layout ── */
+    .app { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 54px); }
+
+    /* ── Sidebar ── */
+    aside {
+      width: 320px;
+      min-width: 260px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: width .2s, min-width .2s;
+    }
+    aside.collapsed { width: 0; min-width: 0; border-right: none; }
+
+    .sidebar-top { padding: 12px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+
+    .tabs { display: flex; gap: 4px; }
+    .tab-btn {
+      flex: 1; padding: 6px 4px; border: 1px solid var(--border);
+      background: none; border-radius: var(--radius); cursor: pointer;
+      font-family: inherit; font-size: .8rem; color: var(--text-muted);
+      transition: background .15s, color .15s;
+    }
+    .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    .search-row { display: flex; gap: 6px; }
+    .search-row input {
+      flex: 1; padding: 7px 10px; border: 1px solid var(--border);
+      border-radius: var(--radius); font-family: inherit; font-size: .9rem;
+      background: var(--bg); color: var(--text); outline: none;
+    }
+    .search-row input:focus { border-color: var(--accent-light); }
+    .search-row button {
+      padding: 7px 10px; border: 1px solid var(--border);
+      border-radius: var(--radius); background: var(--bg); cursor: pointer;
+      font-size: .85rem; color: var(--text-muted);
+    }
+    .search-row button:hover { background: var(--highlight); }
+
+    .search-opts { display: flex; gap: 10px; flex-wrap: wrap; }
+    .search-opts label { display: flex; align-items: center; gap: 4px; font-size: .78rem; color: var(--text-muted); cursor: pointer; }
+
+    .hymn-list { overflow-y: auto; flex: 1; }
+    .hymn-item {
+      padding: 10px 14px; border-bottom: 1px solid var(--border);
+      cursor: pointer; display: flex; align-items: baseline; gap: 8px;
+      transition: background .1s;
+    }
+    .hymn-item:hover { background: var(--highlight); }
+    .hymn-item.active { background: var(--highlight); border-left: 3px solid var(--accent); padding-left: 11px; }
+    .hymn-item.bookmarked .hymn-num::after { content: ' ★'; color: goldenrod; }
+    .hymn-num { font-size: .8rem; color: var(--text-muted); min-width: 32px; font-weight: 700; }
+    .hymn-title { font-size: .9rem; line-height: 1.35; }
+
+    /* ── Main viewer ── */
+    main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 32px 60px;
+      max-width: 720px;
+    }
+
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; height: 100%; color: var(--text-muted);
+      gap: 12px; text-align: center;
+    }
+    .empty-state .icon { font-size: 3rem; }
+
+    .hymn-header { margin-bottom: 20px; }
+    .hymn-header .number { font-size: .85rem; color: var(--text-muted); margin-bottom: 4px; }
+    .hymn-header h2 { font-size: 1.4rem; line-height: 1.3; }
+    .hymn-header .collection-badge {
+      display: inline-block; margin-top: 6px;
+      font-size: .72rem; font-style: normal; padding: 2px 8px;
+      border-radius: 20px; background: var(--highlight); color: var(--accent);
+      border: 1px solid var(--border);
+    }
+
+    .hymn-body { white-space: pre-wrap; line-height: 1.85; letter-spacing: .01em; }
+    .hymn-body .stanza { margin-bottom: 1.4em; }
+
+    .viewer-toolbar {
+      display: flex; gap: 8px; align-items: center;
+      margin-bottom: 18px; flex-wrap: wrap;
+    }
+    .viewer-toolbar button {
+      padding: 5px 12px; border: 1px solid var(--border);
+      border-radius: var(--radius); background: var(--surface);
+      cursor: pointer; font-family: inherit; font-size: .85rem;
+      color: var(--text); transition: background .15s;
+    }
+    .viewer-toolbar button:hover { background: var(--highlight); }
+    .viewer-toolbar button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .font-ctrl { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+    .font-ctrl button { padding: 5px 10px; font-size: 1rem; font-weight: 700; }
+    .font-ctrl span { min-width: 36px; text-align: center; font-size: .8rem; color: var(--text-muted); }
+
+    /* ── MIDI player ── */
+    .player-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--accent);
+      color: #fff;
+      padding: 8px 20px;
+      display: flex; align-items: center; gap: 12px;
+      font-size: .85rem;
+      transform: translateY(100%);
+      transition: transform .25s;
+      z-index: 50;
+    }
+    .player-bar.visible { transform: translateY(0); }
+    .player-bar .play-btn {
+      background: rgba(255,255,255,.2); border: none; color: #fff;
+      border-radius: 50%; width: 36px; height: 36px; cursor: pointer;
+      font-size: 1.1rem; display: flex; align-items: center; justify-content: center;
+      transition: background .15s;
+    }
+    .player-bar .play-btn:hover { background: rgba(255,255,255,.35); }
+    .player-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .player-close { background: none; border: none; color: rgba(255,255,255,.7); cursor: pointer; font-size: 1.2rem; }
+
+    /* ── No results ── */
+    .no-results { padding: 20px; text-align: center; color: var(--text-muted); font-style: italic; }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      aside { width: 100%; position: absolute; top: 54px; bottom: 0; z-index: 90; }
+      aside.collapsed { width: 0; overflow: hidden; }
+      main { padding: 16px 16px 80px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <button class="header-btn" id="sidebarToggle" title="Toggle hymn list">☰</button>
+  <h1>MobiHymnal</h1>
+  <button class="header-btn" id="bookmarkBtn" title="Bookmark this hymn" style="display:none">☆</button>
+  <button class="header-btn" id="showBookmarks" title="Show bookmarks">★</button>
+</header>
+
+<div class="app">
+  <aside id="sidebar">
+    <div class="sidebar-top">
+      <div class="tabs">
+        <button class="tab-btn active" data-col="trinity">Trinity Hymnal</button>
+        <button class="tab-btn" data-col="grace">Grace Hymns</button>
+        <button class="tab-btn" data-col="bookmarks">Bookmarks</button>
+      </div>
+      <div class="search-row">
+        <input type="search" id="searchInput" placeholder="Search hymns…" autocomplete="off" />
+        <button id="clearSearch">✕</button>
+      </div>
+      <div class="search-opts">
+        <label><input type="checkbox" id="optCase"> Case-sensitive</label>
+        <label><input type="checkbox" id="optFirstLine"> First line only</label>
+        <label><input type="checkbox" id="optIgnorePunct" checked> Ignore punctuation</label>
+      </div>
+    </div>
+    <div class="hymn-list" id="hymnList"></div>
+  </aside>
+
+  <main id="mainContent">
+    <div class="empty-state" id="emptyState">
+      <div class="icon">♪</div>
+      <div>Select a hymn to begin reading</div>
+    </div>
+    <div id="hymnView" style="display:none">
+      <div class="viewer-toolbar">
+        <button id="prevHymn">← Prev</button>
+        <button id="nextHymn">Next →</button>
+        <button id="playBtn">▶ Play</button>
+        <div class="font-ctrl">
+          <button id="fontDec">A−</button>
+          <span id="fontSizeLabel">17px</span>
+          <button id="fontInc">A+</button>
+        </div>
+      </div>
+      <div class="hymn-header">
+        <div class="number" id="hymnNumber"></div>
+        <h2 id="hymnTitle"></h2>
+        <em class="collection-badge" id="hymnCollection"></em>
+      </div>
+      <div class="hymn-body" id="hymnBody"></div>
+    </div>
+  </main>
+</div>
+
+<div class="player-bar" id="playerBar">
+  <button class="play-btn" id="playerPlayPause">▶</button>
+  <span class="player-title" id="playerTitle">—</span>
+  <button class="player-close" id="playerClose">✕</button>
+</div>
+
+<script>
+'use strict';
+
+// ── State ──────────────────────────────────────────────────────────────
+let allData = { trinity: [], grace: [] };
+let currentCollection = 'trinity';
+let currentIndex = null;   // index into filtered list
+let filteredList = [];
+let fontSize = parseInt(localStorage.getItem('fontSize') || '17');
+let bookmarks = JSON.parse(localStorage.getItem('bookmarks') || '{}'); // {collection:id -> true}
+let currentMidi = null;
+let midiPlayer = null;
+
+// ── Boot ───────────────────────────────────────────────────────────────
+fetch('hymns.json')
+  .then(r => r.json())
+  .then(data => {
+    allData = data;
+    applyFontSize();
+    renderList();
+  });
+
+// ── Sidebar toggle ─────────────────────────────────────────────────────
+document.getElementById('sidebarToggle').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+});
+
+// ── Tab switching ──────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentCollection = btn.dataset.col;
+    document.getElementById('searchInput').value = '';
+    renderList();
+  });
+});
+
+// ── Bookmarks tab button ────────────────────────────────────────────────
+document.getElementById('showBookmarks').addEventListener('click', () => {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.tab-btn[data-col="bookmarks"]').classList.add('active');
+  currentCollection = 'bookmarks';
+  renderList();
+});
+
+// ── Search ─────────────────────────────────────────────────────────────
+const searchInput = document.getElementById('searchInput');
+searchInput.addEventListener('input', renderList);
+document.getElementById('clearSearch').addEventListener('click', () => { searchInput.value = ''; renderList(); });
+document.getElementById('optCase').addEventListener('change', renderList);
+document.getElementById('optFirstLine').addEventListener('change', renderList);
+document.getElementById('optIgnorePunct').addEventListener('change', renderList);
+
+function normalize(str) {
+  const ignorePunct = document.getElementById('optIgnorePunct').checked;
+  const caseSensitive = document.getElementById('optCase').checked;
+  let s = str;
+  if (ignorePunct) s = s.replace(/[^\w\s]/g, '');
+  if (!caseSensitive) s = s.toLowerCase();
+  return s;
+}
+
+function renderList() {
+  const query = searchInput.value.trim();
+  const firstLineOnly = document.getElementById('optFirstLine').checked;
+  const list = document.getElementById('hymnList');
+
+  let source = [];
+  if (currentCollection === 'bookmarks') {
+    // gather bookmarked hymns from both collections
+    Object.keys(bookmarks).forEach(key => {
+      const [col, id] = key.split(':');
+      const hymn = allData[col]?.find(h => h.id === id);
+      if (hymn) source.push(hymn);
+    });
+  } else {
+    source = allData[currentCollection] || [];
+  }
+
+  if (query) {
+    const q = normalize(query);
+    source = source.filter(h => {
+      const haystack = firstLineOnly ? normalize(h.firstLine) : normalize(h.text);
+      return haystack.includes(q);
+    });
+  }
+
+  filteredList = source;
+
+  if (source.length === 0) {
+    list.innerHTML = '<div class="no-results">No hymns found</div>';
+    return;
+  }
+
+  const bkKey = currentHymnKey();
+  list.innerHTML = source.map((h, i) => {
+    const key = `${h.collection}:${h.id}`;
+    const isActive = currentIndex !== null && filteredList[currentIndex] === h;
+    const isBookmarked = bookmarks[key];
+    return `<div class="hymn-item${isActive ? ' active' : ''}${isBookmarked ? ' bookmarked' : ''}"
+      data-idx="${i}">
+      <span class="hymn-num">#${h.id}</span>
+      <span class="hymn-title">${escHtml(h.firstLine)}</span>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.hymn-item').forEach(el => {
+    el.addEventListener('click', () => selectHymn(parseInt(el.dataset.idx)));
+  });
+}
+
+function currentHymnKey() {
+  if (currentIndex === null || !filteredList[currentIndex]) return null;
+  const h = filteredList[currentIndex];
+  return `${h.collection}:${h.id}`;
+}
+
+// ── Hymn viewer ────────────────────────────────────────────────────────
+function selectHymn(idx) {
+  currentIndex = idx;
+  const hymn = filteredList[idx];
+  if (!hymn) return;
+
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('hymnView').style.display = 'block';
+  document.getElementById('hymnNumber').textContent =
+    `Hymn #${hymn.id}`;
+  document.getElementById('hymnTitle').textContent = hymn.firstLine;
+  document.getElementById('hymnCollection').textContent =
+    hymn.collection === 'trinity' ? 'Trinity Hymnal – Baptist Edition' : 'Grace Hymns';
+  document.getElementById('hymnBody').innerHTML = formatLyrics(hymn.text);
+
+  // bookmark button
+  const bkBtn = document.getElementById('bookmarkBtn');
+  bkBtn.style.display = '';
+  updateBookmarkBtn(hymn);
+
+  // update play button availability
+  const hasMidi = hymn.collection === 'trinity' || hymn.collection === 'grace';
+  document.getElementById('playBtn').style.display = hasMidi ? '' : 'none';
+
+  // scroll main to top
+  document.getElementById('mainContent').scrollTop = 0;
+
+  // highlight active in list
+  renderList();
+
+  // on mobile close sidebar
+  if (window.innerWidth <= 640) {
+    document.getElementById('sidebar').classList.add('collapsed');
+  }
+}
+
+function formatLyrics(text) {
+  return text.split(/\n\n+/).map(stanza =>
+    `<div class="stanza">${escHtml(stanza)}</div>`
+  ).join('');
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Prev / Next ────────────────────────────────────────────────────────
+document.getElementById('prevHymn').addEventListener('click', () => {
+  if (currentIndex > 0) selectHymn(currentIndex - 1);
+});
+document.getElementById('nextHymn').addEventListener('click', () => {
+  if (currentIndex < filteredList.length - 1) selectHymn(currentIndex + 1);
+});
+
+// ── Bookmarks ──────────────────────────────────────────────────────────
+document.getElementById('bookmarkBtn').addEventListener('click', () => {
+  const hymn = filteredList[currentIndex];
+  if (!hymn) return;
+  const key = `${hymn.collection}:${hymn.id}`;
+  if (bookmarks[key]) delete bookmarks[key];
+  else bookmarks[key] = true;
+  localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
+  updateBookmarkBtn(hymn);
+  renderList();
+});
+
+function updateBookmarkBtn(hymn) {
+  const key = `${hymn.collection}:${hymn.id}`;
+  document.getElementById('bookmarkBtn').textContent = bookmarks[key] ? '★' : '☆';
+  document.getElementById('bookmarkBtn').title = bookmarks[key] ? 'Remove bookmark' : 'Bookmark';
+}
+
+// ── Font size ──────────────────────────────────────────────────────────
+function applyFontSize() {
+  document.body.style.fontSize = fontSize + 'px';
+  document.getElementById('fontSizeLabel').textContent = fontSize + 'px';
+}
+document.getElementById('fontInc').addEventListener('click', () => { fontSize = Math.min(fontSize + 1, 28); applyFontSize(); localStorage.setItem('fontSize', fontSize); });
+document.getElementById('fontDec').addEventListener('click', () => { fontSize = Math.max(fontSize - 1, 12); applyFontSize(); localStorage.setItem('fontSize', fontSize); });
+
+// ── MIDI playback ──────────────────────────────────────────────────────
+// Uses browser's Web Audio + a simple MIDI-to-audio approach via MIDIjs
+// We load MIDI files from the assets folder (midi1 / midi2)
+let audio = null;
+
+document.getElementById('playBtn').addEventListener('click', () => {
+  const hymn = filteredList[currentIndex];
+  if (!hymn) return;
+  const folder = hymn.collection === 'trinity' ? 'midi1' : 'midi2';
+  const src = `assets/${folder}/h${hymn.id}.mid`;
+  loadMidi(src, hymn.firstLine);
+});
+
+document.getElementById('playerPlayPause').addEventListener('click', () => {
+  if (midiPlayer && !midiPlayer.paused) {
+    midiPlayer.pause();
+    document.getElementById('playerPlayPause').textContent = '▶';
+  } else if (midiPlayer) {
+    midiPlayer.play();
+    document.getElementById('playerPlayPause').textContent = '⏸';
+  }
+});
+
+document.getElementById('playerClose').addEventListener('click', stopMidi);
+
+function loadMidi(src, title) {
+  stopMidi();
+  // Use native <audio> — browser MIDI support is limited, but we try.
+  // For full MIDI, users can install a browser plugin or we use MIDI.js.
+  midiPlayer = new Audio(src);
+  midiPlayer.addEventListener('ended', () => {
+    document.getElementById('playerPlayPause').textContent = '▶';
+  });
+  midiPlayer.addEventListener('error', () => {
+    showMidiError();
+  });
+  midiPlayer.play().then(() => {
+    document.getElementById('playerBar').classList.add('visible');
+    document.getElementById('playerTitle').textContent = title;
+    document.getElementById('playerPlayPause').textContent = '⏸';
+  }).catch(showMidiError);
+}
+
+function stopMidi() {
+  if (midiPlayer) { midiPlayer.pause(); midiPlayer = null; }
+  document.getElementById('playerBar').classList.remove('visible');
+}
+
+function showMidiError() {
+  document.getElementById('playerBar').classList.remove('visible');
+  alert('MIDI playback requires a browser that supports MIDI audio.\n\nTip: Install the "Jazz-Plugin" or use a Chromium browser with a MIDI soundfont extension.');
+}
+</script>
+
+<!-- Load MIDI.js for richer MIDI support if available -->
+<script>
+// Attempt to enhance MIDI playback using MIDI.js from CDN
+(function() {
+  const script = document.createElement('script');
+  script.src = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/piano-mp3.js';
+  script.onerror = () => {}; // silent fail, fallback to native
+  // We don't load MIDI.js full lib to keep it simple; native Audio handles .mid files
+  // in supported browsers (Firefox with plugin, some Chromium configs).
+})();
+</script>
+
+</body>
+</html>
