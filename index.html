@@ -225,10 +225,6 @@
   <button class="dismiss" id="installDismiss">✕</button>
 </div>
 
-<div class="banner" id="offlineBanner" style="background:#888">
-  <span>You are offline — all content is available locally</span>
-  <button class="dismiss" id="offlineDismiss">✕</button>
-</div>
 
 <header>
   <button class="header-btn" id="sidebarToggle" title="Toggle hymn list">☰</button>
@@ -606,18 +602,6 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(console.error);
 }
 
-// ── Offline banner ─────────────────────────────────────────────────────
-const offlineBanner = document.getElementById('offlineBanner');
-document.getElementById('offlineDismiss').addEventListener('click', () => {
-  offlineBanner.classList.remove('visible');
-});
-function updateOnlineStatus() {
-  if (!navigator.onLine) offlineBanner.classList.add('visible');
-  else offlineBanner.classList.remove('visible');
-}
-window.addEventListener('online', updateOnlineStatus);
-window.addEventListener('offline', updateOnlineStatus);
-updateOnlineStatus();
 
 // ── Install (Add to Home Screen) prompt ────────────────────────────────
 let deferredInstallPrompt = null;
