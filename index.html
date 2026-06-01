@@ -791,7 +791,6 @@ document.getElementById('fontDec').addEventListener('click', function() {
 var midiPlayerLib = null;
 var audioContext = null;
 var instrument = null;
-var instrumentPromise = null;
 var isPlaying = false;
 
 // iOS 9 works with the monolithic base64 JS soundfont.
@@ -885,6 +884,7 @@ function loadMidi(src, title, onFinish) {
       if (onFinish) onFinish();
     });
     midiPlayerLib.loadArrayBuffer(arrayBuf);
+    if (ctx.state === 'suspended') ctx.resume();
     midiPlayerLib.play();
     setPlayerState(true);
     document.getElementById('playerTitle').textContent = title;
@@ -906,13 +906,21 @@ function loadMidi(src, title, onFinish) {
 
   if (instrument) {
     loadAndPlay();
-  } else if (instrumentPromise) {
-    // Soundfont is preloading — wait for it then play
-    instrumentPromise.then(function() {
+  } else if (USE_MANIFEST) {
+    Soundfont.instrument(ctx, '/soundfont/manifest.json').then(function(inst) {
+      instrument = inst;
+      instrument._midiKeys = Object.keys(inst.buffers).map(Number).sort(function(a,b){return a-b;});
       loadAndPlay();
     }).catch(onError);
   } else {
-    onError('Soundfont not ready. Try again in a moment.');
+    Soundfont.instrument(ctx, 'acoustic_grand_piano', {
+      nameToUrl: function(name, sf, format) { return '/soundfont/' + name + '-' + format + '.js'; },
+      format: 'mp3'
+    }).then(function(inst) {
+      instrument = inst;
+      instrument._midiKeys = Object.keys(inst.buffers).map(Number).sort(function(a,b){return a-b;});
+      loadAndPlay();
+    }).catch(onError);
   }
 }
 </script>
@@ -925,35 +933,6 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(console.error);
 }
 
-// ── Preload soundfont after vendor scripts are ready ──────────────────
-// decodeAudioData works on a suspended AudioContext, so we can decode
-// all note buffers before any user gesture. When Play is tapped, the
-// soundfont is already in memory and audio starts immediately.
-(function preloadSoundfont() {
-  try {
-    var ctx = getAudioContext(); // creates in suspended state — fine on iOS
-    if (USE_MANIFEST) {
-      instrumentPromise = Soundfont.instrument(ctx, '/soundfont/manifest.json');
-    } else {
-      instrumentPromise = Soundfont.instrument(ctx, 'acoustic_grand_piano', {
-        nameToUrl: function(name, sf, format) { return '/soundfont/' + name + '-' + format + '.js'; },
-        format: 'mp3'
-      });
-    }
-    instrumentPromise.then(function(inst) {
-      instrument = inst;
-      instrument._midiKeys = Object.keys(inst.buffers).map(Number)
-        .sort(function(a, b) { return a - b; });
-      instrumentPromise = null; // done — loadMidi will use instrument directly
-    }).catch(function(e) {
-      console.warn('Soundfont preload failed, will retry on play:', e);
-      instrument = null;
-      instrumentPromise = null;
-    });
-  } catch(e) {
-    console.warn('Soundfont preload error:', e);
-  }
-}());
 </script>
 
 </body>
